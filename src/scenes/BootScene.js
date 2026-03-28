@@ -1,25 +1,32 @@
 /**
  * BootScene — loads all game assets before any other scene starts.
  *
- * Phase 2 note: add real spritesheets, tilemaps, and audio here once
- * the Piskel / Tiled / Bfxr assets are created.
+ * Vite resolves the PNG imports to hashed URLs that work in both
+ * dev mode and the production build.
  */
+
+import mallardWalkUrl  from '../assets/mallard-walk.png';
+import mallardFlyUrl   from '../assets/mallard-flying.png';
+import mallardSwimUrl  from '../assets/mallard-on-water-swimming.png';
+import mallardDiveUrl  from '../assets/mallard-underwater-swimming.png';
+import bisonWalkUrl    from '../assets/bison-walk.png';
+
 export default class BootScene extends Phaser.Scene {
   constructor() {
     super({ key: 'BootScene' });
   }
 
   preload() {
-    // ── Placeholder graphics (generated in code until real sprites are ready) ──
-    // Once you have Piskel sprite sheets, replace these with:
-    //   this.load.spritesheet('mallory', 'assets/mallory.png', { frameWidth: 48, frameHeight: 48 });
-    //   this.load.spritesheet('bennett', 'assets/bennett.png', { frameWidth: 96, frameHeight: 64 });
-    //   this.load.tilemapTiledJSON('level1', 'assets/level1.json');
-    //   this.load.image('tiles', 'assets/tileset.png');
-    //   this.load.audio('jump', 'assets/sfx/jump.wav');
-    //   etc.
+    // ── Mallory sprites ───────────────────────────────────────────────────────
+    this.load.image('mallard-walk', mallardWalkUrl);
+    this.load.image('mallard-fly',  mallardFlyUrl);
+    this.load.image('mallard-swim', mallardSwimUrl);
+    this.load.image('mallard-dive', mallardDiveUrl);
 
-    // Loading bar (friendly feedback while assets load)
+    // ── Bennett ───────────────────────────────────────────────────────────────
+    this.load.image('bison-walk', bisonWalkUrl);
+
+    // ── Loading bar ───────────────────────────────────────────────────────────
     const { width, height } = this.scale;
     const bar = this.add.graphics();
     const box = this.add.graphics();
