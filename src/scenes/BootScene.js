@@ -5,11 +5,11 @@
  * dev mode and the production build.
  */
 
-import mallardWalkUrl  from '../assets/mallard-walk.png';
-import mallardFlyUrl   from '../assets/mallard-flying.png';
-import mallardSwimUrl  from '../assets/mallard-on-water-swimming.png';
-import mallardDiveUrl  from '../assets/mallard-underwater-swimming.png';
-import bisonWalkUrl    from '../assets/bison-walk.png';
+import mallardWalkUrl  from '../assets/mallory-walk.png';
+import mallardFlyUrl   from '../assets/mallory-flying.png';
+import mallardSwimUrl  from '../assets/mallory-on-water-swimming.png';
+import mallardDiveUrl  from '../assets/mallory-underwater-swimming.png';
+import bisonWalkUrl    from '../assets/bennett-walk.png';
 
 export default class BootScene extends Phaser.Scene {
   constructor() {

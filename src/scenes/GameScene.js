@@ -25,22 +25,6 @@ export const KEY_Y  = LAND_Y - 140;
 const MOUNTAINS = [{ x: 900, w: 100 }, { x: 2900, w: 110 }];
 const CAMPFIRES = [{ x: 550, h: 95  }, { x: 2600, h: 100 }];
 
-// ── Colour palettes ────────────────────────────────────────────────────────────
-const C_BODY    = 0x8B5E3C;
-const C_WING    = 0x6B4020;
-const C_SPEC    = 0x2255AA;
-const C_NECK    = 0xFFFFFF;
-const C_HEAD    = 0x1A6B1A;
-const C_BILL    = 0xC8C820;
-const C_HAT     = 0x4A2810;
-const C_HATBAND = 0xD4A017;
-const C_LEG     = 0xFFA500;
-
-const C_BEN_BODY  = 0x5C3010;
-const C_BEN_HUMP  = 0x6B3A14;
-const C_BEN_FRONT = 0x3A1A06;
-const C_BEN_HEAD  = 0x1E0A02;
-const C_BEN_HORN  = 0xD4C080;
 
 // ── Mountain slope helper (module-level) ──────────────────────────────────────
 function mSurfY(m, wx) {
@@ -74,9 +58,11 @@ export default class GameScene extends Phaser.Scene {
       stepTimer: 0,
     };
 
-    this.malloryGfx       = this.add.graphics();
-    this.malloryContainer = this.add.container(this.duck.x, this.duck.y, [this.malloryGfx]).setDepth(5);
-    this.cameras.main.startFollow(this.malloryContainer, true, 0.1, 0);
+    // Mallory sprite — origin bottom-centre so duck.y = feet position
+    this.mallorySprite = this.add.image(this.duck.x, this.duck.y, 'mallard-walk')
+      .setOrigin(0.5, 1.0).setDepth(5);
+    this.mallorySprite.setScale(50 / this.mallorySprite.height);
+    this.cameras.main.startFollow(this.mallorySprite, true, 0.1, 0);
 
     this.itemsGfx = this.add.graphics().setDepth(3);
     this.predGfx  = this.add.graphics().setDepth(4);
@@ -135,6 +121,17 @@ export default class GameScene extends Phaser.Scene {
     ];
 
     this._buildHUD();
+
+    // Bennett sprite in cage — depth 1 (above dark bg at 0, below bars at 2)
+    // Flipped left to face into the cage.
+    this.bennettCaged = this.add.image(CAGE_X + CAGE_W / 2, CAGE_Y + CAGE_H - 4, 'bison-walk')
+      .setOrigin(0.5, 1.0).setDepth(1).setFlipX(true);
+    const benCageScale = Math.min(
+      90 / this.bennettCaged.height,
+      (CAGE_W - 8) / this.bennettCaged.width
+    );
+    this.bennettCaged.setScale(benCageScale);
+    this._drawCageBars();
   }
 
   // ── update ──────────────────────────────────────────────────────────────────
@@ -305,10 +302,14 @@ export default class GameScene extends Phaser.Scene {
     else if (Math.abs(duck.vx) > 0.5)      drawState = 'walk';
     else                                    drawState = 'stand';
 
-    this.malloryContainer.setPosition(duck.x, duck.y);
-    this.malloryContainer.scaleX = duck.facing;
-    this.malloryContainer.setAlpha(this.invincible && Math.floor(this._tick / 4) % 2 === 0 ? 0.3 : 1.0);
-    this._drawMallory(this.malloryGfx, duck.stepTimer, drawState);
+    // Swap texture for current movement state
+    const texKey = drawState === 'fly'  ? 'mallard-fly'  :
+                   drawState === 'swim' ? 'mallard-swim' :
+                   drawState === 'dive' ? 'mallard-dive' : 'mallard-walk';
+    this.mallorySprite.setTexture(texKey);
+    this.mallorySprite.setPosition(duck.x, duck.y);
+    this.mallorySprite.setFlipX(duck.facing < 0);
+    this.mallorySprite.setAlpha(this.invincible && Math.floor(this._tick / 4) % 2 === 0 ? 0.3 : 1.0);
 
     this._drawItems();
 
@@ -509,96 +510,6 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  // ── Mallory drawing ─────────────────────────────────────────────────────────
-  // Always drawn facing RIGHT. Container.scaleX = duck.facing flips for left.
-  // (0,0) = duck feet / anchor (bottom centre on land; water-surface level in water).
-  _drawMallory(gfx, stepTimer, state) {
-    gfx.clear();
-    const isDive   = (state === 'dive');
-    const inWater  = (state === 'swim' || isDive);
-    const isFlying = (state === 'fly');
-
-    // ── Flying wings — drawn FIRST (behind body) ───────────────────────────
-    // Only 'fly' state (UP held + energy remaining). Math.sin gives wing flap.
-    if (isFlying) {
-      const wA     = Math.sin(stepTimer * 0.4);   // -1..1
-      const spread = 20 + wA * 12;                // 8..32 px each side
-      const tipY   = -26 + wA * 10;              // -36 upstroke → -16 downstroke
-      gfx.fillStyle(C_WING);
-      gfx.fillPoints([{x: 4,y:-30},{x: 4+spread,y:tipY},{x: 4,y:-18}], true);
-      gfx.fillPoints([{x:-4,y:-30},{x:-4-spread,y:tipY},{x:-4,y:-18}], true);
-      gfx.fillStyle(C_SPEC);
-      gfx.fillPoints([{x: 4,y:-27},{x: 4+spread*0.65,y:tipY+4},{x: 4,y:-22}], true);
-      gfx.fillPoints([{x:-4,y:-27},{x:-4-spread*0.65,y:tipY+4},{x:-4,y:-22}], true);
-    }
-
-    // ── Webbed feet — dive only, drawn before body so body overlaps legs ───
-    // kick = Math.sin(stepTimer*0.35): right/left feet alternate ±7 px.
-    if (isDive) {
-      gfx.fillStyle(C_LEG);
-      const kick = Math.sin(stepTimer * 0.35) * 7;
-      // Right foot
-      gfx.fillRect( 3,  kick,     4, 8);    // upper leg
-      gfx.fillRect( 1,  kick + 6, 9, 3);   // webbed foot
-      // Left foot (opposite phase)
-      gfx.fillRect(-7, -kick,     4, 8);
-      gfx.fillRect(-9, -kick + 6, 9, 3);
-    }
-
-    // ── Land legs & feet (not flying, not in water) ────────────────────────
-    if (!inWater && !isFlying) {
-      gfx.fillStyle(C_LEG);
-      if (state === 'walk') {
-        const s = Math.sin(stepTimer * 0.3) * 10;   // ±10 px stride
-        gfx.fillRect( 2 + s, -14, 4, 14);           // right shin
-        gfx.fillRect( s,      -3, 8,  3);           // right foot
-        gfx.fillRect(-6 - s, -14, 4, 14);           // left shin
-        gfx.fillRect(-8 - s,  -3, 8,  3);           // left foot
-      } else {
-        gfx.fillRect(-7, -13, 4, 13);  gfx.fillRect(-9, -3, 7, 3);
-        gfx.fillRect( 3, -13, 4, 13);  gfx.fillRect( 2, -3, 7, 3);
-      }
-    }
-
-    // ── Body, neck, head ───────────────────────────────────────────────────
-    // swim (surface): bodyY=0 → centre at water-surface, exactly half-submerged.
-    // dive (underwater): bodyY=-10 → duck fully below surface, legs visible below.
-    // land/fly: bodyY=-22 → upright posture above ground.
-    let bodyY, neckY, headY;
-    if (isDive)        { bodyY = -10; neckY = -20; headY = -28; }
-    else if (inWater)  { bodyY =   0; neckY = -12; headY = -20; }
-    else               { bodyY = -22; neckY = -31; headY = -37; }
-
-    const bW = inWater ? 32 : 28,  bH = inWater ? 18 : 24;
-    gfx.fillStyle(C_BODY).fillEllipse(0, bodyY, bW, bH);
-    gfx.fillStyle(C_WING).fillEllipse(0, bodyY - 2, inWater ? 26 : 23, inWater ? 13 : 18);
-    gfx.fillStyle(C_SPEC).fillRect(-3, bodyY - (inWater ? 5 : 4), 13, inWater ? 5 : 6);
-
-    // Neck ring
-    gfx.fillStyle(C_NECK).fillEllipse(0, neckY, 13, 8);
-
-    // Head
-    gfx.fillStyle(C_HEAD).fillCircle(2, headY, 9);
-
-    // Bill
-    gfx.fillStyle(C_BILL);
-    gfx.fillRect(9, headY - 3, 8, 3);
-    gfx.fillRect(9, headY + 1, 8, 3);
-
-    // Eye
-    gfx.fillStyle(0xFFFFFF).fillCircle(6, headY - 2, 2);
-    gfx.fillStyle(0x111111).fillCircle(6, headY - 2, 1);
-
-    // Cowboy hat (land & fly only — hat comes off underwater)
-    if (!inWater) {
-      const hb = headY - 10;
-      gfx.fillStyle(C_HAT);
-      gfx.fillRect(-11, hb,      24,  4);
-      gfx.fillRect( -6, hb - 11, 14, 11);
-      gfx.fillStyle(C_HATBAND).fillRect(-6, hb - 1, 14, 2);
-    }
-  }
-
   // ── World background (drawn once in create) ─────────────────────────────────
   _drawWorld() {
     const gfx = this.add.graphics().setDepth(0);
@@ -622,7 +533,7 @@ export default class GameScene extends Phaser.Scene {
 
     MOUNTAINS.forEach(m  => this._drawMountain(gfx, m));
     CAMPFIRES.forEach(cf => this._drawCampfire(gfx, cf));
-    this._drawCage(gfx);
+    this._drawCageBg(gfx);
   }
 
   _drawMountain(gfx, m) {
@@ -651,29 +562,16 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  _drawCage(gfx) {
+  // Dark cage interior — drawn at depth 0 behind the Bennett PNG (depth 1)
+  _drawCageBg(gfx) {
     const x = CAGE_X, y = CAGE_Y, w = CAGE_W, h = CAGE_H;
     gfx.fillStyle(0x1A0800).fillRect(x + 5, y + 6, w - 10, h - 12);
+  }
 
-    const bx = x + 62, by = y + h - 12;
-    gfx.fillStyle(C_BEN_BODY).fillEllipse(bx - 5, by - 26, 68, 40);
-    gfx.fillStyle(C_BEN_HUMP).fillEllipse(bx + 20, by - 44, 34, 28);
-    gfx.fillStyle(C_BEN_FRONT).fillEllipse(bx - 36, by - 24, 28, 44);
-    gfx.fillStyle(C_BEN_HEAD).fillEllipse(bx - 44, by - 36, 28, 22);
-    gfx.fillStyle(C_BEN_HORN);
-    gfx.fillRect(bx - 52, by - 54,  4, 14);
-    gfx.fillRect(bx - 58, by - 54, 10,  4);
-    gfx.fillRect(bx - 42, by - 54,  4, 14);
-    gfx.fillRect(bx - 46, by - 54, 12,  4);
-    gfx.fillStyle(0xFFFFFF).fillCircle(bx - 48, by - 40, 3);
-    gfx.fillStyle(0x111111).fillCircle(bx - 48, by - 40, 1.5);
-    gfx.fillStyle(C_BEN_FRONT).fillEllipse(bx - 53, by - 28, 14, 10);
-    gfx.fillStyle(0x4A2010);
-    gfx.fillRect(bx - 28, by - 10, 5, 10);
-    gfx.fillRect(bx - 18, by - 10, 5, 10);
-    gfx.fillRect(bx +  4, by - 10, 5, 10);
-    gfx.fillRect(bx + 14, by - 10, 5, 10);
-
+  // Cage bars — own Graphics at depth 2, drawn on top of Bennett PNG
+  _drawCageBars() {
+    const gfx = this.add.graphics().setDepth(2);
+    const x = CAGE_X, y = CAGE_Y, w = CAGE_W, h = CAGE_H;
     gfx.fillStyle(0x888888).fillRect(x - 4, y,         w + 8, 6);
     gfx.fillStyle(0x666666).fillRect(x,     y + h - 6, w,     6);
     gfx.fillStyle(0x999999);
