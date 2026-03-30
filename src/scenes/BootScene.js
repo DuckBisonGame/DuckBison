@@ -10,6 +10,7 @@ import mallardFlyUrl   from '../assets/mallory-flying.png';
 import mallardSwimUrl  from '../assets/mallory-on-water-swimming.png';
 import mallardDiveUrl  from '../assets/mallory-underwater-swimming.png';
 import bisonWalkUrl    from '../assets/bennett-walk.png';
+import titleImageUrl   from '../assets/Mallory_on_top_of_Bennett.jpg';
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -25,6 +26,9 @@ export default class BootScene extends Phaser.Scene {
 
     // ── Bennett ───────────────────────────────────────────────────────────────
     this.load.image('bison-walk', bisonWalkUrl);
+
+    // ── Title screen ──────────────────────────────────────────────────────────
+    this.load.image('title-image', titleImageUrl);
 
     // ── Loading bar ───────────────────────────────────────────────────────────
     const { width, height } = this.scale;

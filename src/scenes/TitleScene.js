@@ -19,8 +19,15 @@ export default class TitleScene extends Phaser.Scene {
     const ground = this.add.graphics();
     ground.fillStyle(0x4a7c2f).fillRect(0, height - 60, width, 60);
 
+    // Title image — centered, scaled to fit nicely in upper portion of screen
+    const img = this.add.image(width / 2, height * 0.38, 'title-image').setOrigin(0.5, 0.5);
+    const maxW = width * 0.72;
+    const maxH = height * 0.52;
+    const scale = Math.min(maxW / img.width, maxH / img.height);
+    img.setScale(scale);
+
     // Title text
-    this.add.text(width / 2, height * 0.28, 'DUCK BISON', {
+    this.add.text(width / 2, height * 0.08, 'DUCK BISON', {
       fontFamily: 'Arial Black, Impact, sans-serif',
       fontSize: '64px',
       color: '#f7c948',
@@ -28,17 +35,9 @@ export default class TitleScene extends Phaser.Scene {
       strokeThickness: 8,
     }).setOrigin(0.5);
 
-    this.add.text(width / 2, height * 0.45, 'Help Mallory rescue Bennett!', {
-      fontFamily: 'Arial, sans-serif',
-      fontSize: '22px',
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 4,
-    }).setOrigin(0.5);
-
     // START button (canvas-drawn, no HTML elements)
     const btnX = width / 2;
-    const btnY = height * 0.65;
+    const btnY = height * 0.75;
     const btnW = 200;
     const btnH = 52;
 
@@ -63,7 +62,7 @@ export default class TitleScene extends Phaser.Scene {
     this.input.keyboard.once('keydown-SPACE', () => this.scene.start('GameScene'));
 
     // Credits
-    this.add.text(width / 2, height - 16, 'By Rose & Zack', {
+    this.add.text(width / 2, height - 16, 'By Zack', {
       fontFamily: 'Arial, sans-serif',
       fontSize: '14px',
       color: '#cccccc',
