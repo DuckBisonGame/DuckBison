@@ -20,7 +20,7 @@ export default class TitleScene extends Phaser.Scene {
     ground.fillStyle(0x4a7c2f).fillRect(0, height - 60, width, 60);
 
     // Title image — centered, scaled to fit nicely in upper portion of screen
-    const img = this.add.image(width / 2, height * 0.38, 'title-image').setOrigin(0.5, 0.5);
+    const img = this.add.image(width / 2, height * 0.38 + 40, 'title-image').setOrigin(0.5, 0.5);
     const maxW = width * 0.72;
     const maxH = height * 0.52;
     const scale = Math.min(maxW / img.width, maxH / img.height);

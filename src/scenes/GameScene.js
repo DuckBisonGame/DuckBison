@@ -64,8 +64,9 @@ export default class GameScene extends Phaser.Scene {
     this.mallorySprite.setScale(50 / this.mallorySprite.height);
     this.cameras.main.startFollow(this.mallorySprite, true, 0.1, 0);
 
-    this.itemsGfx = this.add.graphics().setDepth(3);
-    this.predGfx  = this.add.graphics().setDepth(4);
+    this.campfireGfx = this.add.graphics().setDepth(1); // above sky/ground, below items
+    this.itemsGfx    = this.add.graphics().setDepth(3);
+    this.predGfx     = this.add.graphics().setDepth(4);
 
     // ── Game state ─────────────────────────────────────────────────────────
     this.coins      = 0;
@@ -279,7 +280,13 @@ export default class GameScene extends Phaser.Scene {
       this.scene.start('WinScene'); return;
     }
     for (const c of this.coinData) {
-      if (!c.collected && Math.abs(duck.x - c.x) < 14 && Math.abs(duck.y - c.y) < 14) {
+      if (c.collected) continue;
+      // Water coins: underwater coins need duck.underwater; surface coins need duck at surface
+      if (c.x > WATER_START && c.x < WATER_END) {
+        if (c.y > WATER_SURFACE + 20 && !duck.underwater) continue;
+        if (c.y <= WATER_SURFACE + 20 && duck.y > WATER_SURFACE + 5) continue;
+      }
+      if (Math.abs(duck.x - c.x) < 22 && Math.abs(duck.y - c.y) < 22) {
         c.collected = true; this.coins++;
       }
     }
@@ -312,6 +319,7 @@ export default class GameScene extends Phaser.Scene {
     this.mallorySprite.setAlpha(this.invincible && Math.floor(this._tick / 4) % 2 === 0 ? 0.3 : 1.0);
 
     this._drawItems();
+    this._drawCampfires();
 
     // HUD
     this.hudCoins.setText(`Coins: ${this.coins}`);
@@ -514,8 +522,17 @@ export default class GameScene extends Phaser.Scene {
   _drawWorld() {
     const gfx = this.add.graphics().setDepth(0);
 
-    gfx.fillStyle(0x4878B8).fillRect(0, 0, WORLD_W, 200);
-    gfx.fillStyle(0x87CEEB).fillRect(0, 200, WORLD_W, LAND_Y - 200);
+    // Sky gradient: #1a3a6b (top) → #87CEEB (horizon at LAND_Y)
+    const STRIPS = 60;
+    const stripH = Math.ceil(LAND_Y / STRIPS);
+    for (let i = 0; i < STRIPS; i++) {
+      const t = i / (STRIPS - 1);
+      const r = Math.round(0x1a + (0x87 - 0x1a) * t);
+      const g = Math.round(0x3a + (0xCE - 0x3a) * t);
+      const b = Math.round(0x6b + (0xEB - 0x6b) * t);
+      gfx.fillStyle((r << 16) | (g << 8) | b);
+      gfx.fillRect(0, i * stripH, WORLD_W, stripH + 1); // +1 avoids hairline gaps
+    }
 
     gfx.fillStyle(0x1860A0)
        .fillRect(WATER_START, WATER_SURFACE, WATER_END - WATER_START, WATER_FLOOR - WATER_SURFACE);
@@ -531,8 +548,7 @@ export default class GameScene extends Phaser.Scene {
     gfx.fillRect(WATER_START - 28, LAND_Y - 6, 56, 14);
     gfx.fillRect(WATER_END   - 28, LAND_Y - 6, 56, 14);
 
-    MOUNTAINS.forEach(m  => this._drawMountain(gfx, m));
-    CAMPFIRES.forEach(cf => this._drawCampfire(gfx, cf));
+    MOUNTAINS.forEach(m => this._drawMountain(gfx, m));
     this._drawCageBg(gfx);
   }
 
@@ -547,19 +563,39 @@ export default class GameScene extends Phaser.Scene {
       [{x:peakX-snowHW,y:peakY+snowH},{x:peakX+snowHW,y:peakY+snowH},{x:peakX,y:peakY}], true);
   }
 
-  _drawCampfire(gfx, cf) {
-    const bx = cf.x, by = LAND_Y, fh = cf.h - 6;
-    gfx.fillStyle(0x5C3010);
-    gfx.fillRect(bx - 14, by - 5,  28, 5);
-    gfx.fillRect(bx - 5,  by - 16,  5, 16);
-    gfx.fillRect(bx + 1,  by - 16,  5, 16);
-    [{col:0xDD1100,wf:1.00,hf:1.00},{col:0xFF4400,wf:0.75,hf:0.80},
-     {col:0xFF8800,wf:0.50,hf:0.58},{col:0xFFCC00,wf:0.28,hf:0.34}]
-    .forEach(f => {
-      gfx.fillStyle(f.col).fillPoints([
-        {x:bx-10*f.wf,y:by-5},{x:bx+10*f.wf,y:by-5},{x:bx,y:by-5-fh*f.hf},
-      ], true);
-    });
+  _drawCampfires() {
+    const gfx = this.campfireGfx;
+    gfx.clear();
+    const t = this._tick;
+    for (const cf of CAMPFIRES) {
+      const bx = cf.x, by = LAND_Y;
+      // Flame height reduced 40% from original
+      const baseFH = (cf.h - 6) * 0.60;
+
+      // Log base (static)
+      gfx.fillStyle(0x5C3010);
+      gfx.fillRect(bx - 14, by - 5,  28, 5);
+      gfx.fillRect(bx - 5,  by - 16,  5, 16);
+      gfx.fillRect(bx + 1,  by - 16,  5, 16);
+
+      // 3 flame layers — each oscillates independently
+      const layers = [
+        { col: 0xDD1100, wf: 1.00, hf: 1.00, phase: 0.00 },
+        { col: 0xFF5500, wf: 0.70, hf: 0.80, phase: 1.10 },
+        { col: 0xFF8800, wf: 0.45, hf: 0.58, phase: 2.20 },
+        { col: 0xFFCC00, wf: 0.24, hf: 0.34, phase: 0.70 },
+      ];
+      for (const f of layers) {
+        const flicker = 1 + Math.sin(t * 0.15 + f.phase) * 0.12;
+        const fw = 10 * f.wf * flicker;
+        const fh = baseFH * f.hf * (1 + Math.sin(t * 0.13 + f.phase + 0.5) * 0.08);
+        gfx.fillStyle(f.col).fillPoints([
+          { x: bx - fw, y: by - 5 },
+          { x: bx + fw, y: by - 5 },
+          { x: bx,      y: by - 5 - fh },
+        ], true);
+      }
+    }
   }
 
   // Dark cage interior — drawn at depth 0 behind the Bennett PNG (depth 1)

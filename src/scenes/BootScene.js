@@ -10,7 +10,7 @@ import mallardFlyUrl   from '../assets/mallory-flying.png';
 import mallardSwimUrl  from '../assets/mallory-on-water-swimming.png';
 import mallardDiveUrl  from '../assets/mallory-underwater-swimming.png';
 import bisonWalkUrl    from '../assets/bennett-walk.png';
-import titleImageUrl   from '../assets/Mallory_on_top_of_Bennett.jpg';
+import titleImageUrl   from '../assets/Mallory_on_top_of_Bennett2.png';
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
