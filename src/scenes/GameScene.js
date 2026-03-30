@@ -171,23 +171,54 @@ export default class GameScene extends Phaser.Scene {
     else                       { duck.vx = 0; }
 
     if (inWater) {
-      // ── Water physics ──────────────────────────────────────────────────
-      if (cur.up.isDown)   duck.vy -= 0.3  * fdt;
-      if (cur.down.isDown) duck.vy += 0.3  * fdt;
-      duck.vy += 0.10 * fdt;
-      duck.vx *= Math.pow(0.88, fdt);
-      duck.vy *= Math.pow(0.82, fdt);
-      if (!cur.up.isDown && !cur.down.isDown) duck.vy -= 0.12 * fdt;
+      if (duck.underwater) {
+        // ── Fully underwater — water physics ─────────────────────────────
+        if (cur.up.isDown)   duck.vy -= 0.3  * fdt;
+        if (cur.down.isDown) duck.vy += 0.3  * fdt;
+        duck.vy += 0.10 * fdt;
+        duck.vx *= Math.pow(0.88, fdt);
+        duck.vy *= Math.pow(0.82, fdt);
+        if (!cur.up.isDown && !cur.down.isDown) duck.vy -= 0.12 * fdt;
+        duck.x += duck.vx * fdt;
+        duck.y += duck.vy * fdt;
+        if (duck.y <= WATER_SURFACE) { duck.y = WATER_SURFACE; duck.vy = 0; duck.onGround = true; }
+        else                         { duck.onGround = false; }
+        if (duck.y >= WATER_FLOOR)   { duck.y = WATER_FLOOR; duck.vy = Math.min(0, duck.vy); }
+        duck.isFlying  = false;
+        duck.underwater = duck.y > WATER_SURFACE + 2;
 
-      duck.x += duck.vx * fdt;
-      duck.y += duck.vy * fdt;
-
-      if (duck.y <= WATER_SURFACE) { duck.y = WATER_SURFACE; duck.vy = Math.max(0, duck.vy); duck.onGround = true; }
-      else                         { duck.onGround = false; }
-      if (duck.y >= WATER_FLOOR)   { duck.y = WATER_FLOOR;   duck.vy = Math.min(0, duck.vy); }
-
-      duck.isFlying  = false;
-      duck.underwater = duck.y > WATER_SURFACE + 2;
+      } else {
+        // ── On surface or airborne above water — land-style physics ──────
+        duck.underwater = false;
+        if (Phaser.Input.Keyboard.JustDown(cur.up) && duck.onGround) {
+          duck.vy = -6; duck.onGround = false; duck.jumpHeld = true; duck.jumpFrames = 0;
+        }
+        // DOWN from surface starts a dive
+        if (duck.onGround && cur.down.isDown) {
+          duck.onGround = false; duck.vy = 2.0;
+        }
+        const flyAvail = !duck.onGround && duck.flyFrames < FLY_DURATION;
+        duck.isFlying  = cur.up.isDown && flyAvail;
+        if (duck.isFlying) {
+          duck.vy = -2.0; duck.flyFrames += fdt; duck.jumpHeld = false;
+        } else {
+          if (cur.up.isDown && duck.jumpHeld && duck.jumpFrames < 20) {
+            duck.vy -= 0.6 * fdt; duck.jumpFrames += fdt;
+          }
+          if (!cur.up.isDown) duck.jumpHeld = false;
+          duck.vy += 0.5 * fdt;
+        }
+        duck.x += duck.vx * fdt;
+        duck.y += duck.vy * fdt;
+        if (duck.y < FLY_CEILING) { duck.y = FLY_CEILING; duck.vy = 0; }
+        // Transition to underwater when sinking below surface
+        if (duck.y > WATER_SURFACE + 2) {
+          duck.underwater = true;
+        } else if (duck.y >= WATER_SURFACE && duck.vy >= 0) {
+          duck.y = WATER_SURFACE; duck.vy = 0; duck.onGround = true;
+          duck.jumpHeld = false; duck.flyFrames = 0;
+        }
+      }
 
     } else {
       // ── Land physics ───────────────────────────────────────────────────
@@ -303,18 +334,29 @@ export default class GameScene extends Phaser.Scene {
 
     // ── Draw state ───────────────────────────────────────────────────────────
     let drawState;
-    if (inWater)                            drawState = duck.underwater ? 'dive' : 'swim';
-    else if (duck.isFlying)                 drawState = 'fly';    // UP held + energy
-    else if (!duck.onGround)                drawState = 'stand';  // plain jump, no wings
-    else if (Math.abs(duck.vx) > 0.5)      drawState = 'walk';
-    else                                    drawState = 'stand';
+    if (duck.underwater)                              drawState = 'dive';
+    else if (inWater && duck.y >= WATER_SURFACE - 4) drawState = 'swim'; // at surface
+    else if (duck.isFlying)                           drawState = 'fly';
+    else if (!duck.onGround)                          drawState = 'stand';
+    else if (Math.abs(duck.vx) > 0.5)                drawState = 'walk';
+    else                                              drawState = 'stand';
 
     // Swap texture for current movement state
     const texKey = drawState === 'fly'  ? 'mallard-fly'  :
                    drawState === 'swim' ? 'mallard-swim' :
                    drawState === 'dive' ? 'mallard-dive' : 'mallard-walk';
     this.mallorySprite.setTexture(texKey);
-    this.mallorySprite.setPosition(duck.x, duck.y);
+
+    // y-offset: swim sprite pushed down so body sits on water surface;
+    //           walk bob simulates foot movement
+    let spriteY = duck.y;
+    if (drawState === 'swim') {
+      spriteY += 10; // align body with water line (sprite has padding at bottom)
+    } else if (drawState === 'walk') {
+      spriteY += Math.sin(duck.stepTimer * 0.3) * 2; // 2px vertical bob
+    }
+
+    this.mallorySprite.setPosition(duck.x, spriteY);
     this.mallorySprite.setFlipX(duck.facing < 0);
     this.mallorySprite.setAlpha(this.invincible && Math.floor(this._tick / 4) % 2 === 0 ? 0.3 : 1.0);
 
