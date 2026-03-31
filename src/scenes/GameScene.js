@@ -282,7 +282,7 @@ export default class GameScene extends Phaser.Scene {
       // Duck feet (duck.y) must be below the flame top to take damage.
       if (!this.invincible) {
         for (const cf of CAMPFIRES) {
-          if (Math.abs(duck.x - cf.x) < 18 && duck.y > LAND_Y - cf.h) {
+          if (Math.abs(duck.x - cf.x) < 26 && duck.y > LAND_Y - cf.h - 8) {
             this.scene.start('DeadScene'); return;
           }
         }
@@ -303,11 +303,11 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // ── Collectibles ────────────────────────────────────────────────────────
-    if (!this.keyCollected && Math.abs(duck.x - KEY_X) < 16 && Math.abs(duck.y - KEY_Y) < 18) {
+    if (!this.keyCollected && Math.abs(duck.x - KEY_X) < 24 && Math.abs(duck.y - KEY_Y) < 26) {
       this.keyCollected = true; this.hasKey = true;
     }
-    if (this.hasKey && duck.x > CAGE_X - 22 && duck.x < CAGE_X + 15 &&
-        duck.y > CAGE_Y && duck.y < CAGE_Y + CAGE_H) {
+    if (this.hasKey && duck.x > CAGE_X - 30 && duck.x < CAGE_X + 23 &&
+        duck.y > CAGE_Y - 8 && duck.y < CAGE_Y + CAGE_H + 8) {
       this.scene.start('WinScene'); return;
     }
     for (const c of this.coinData) {
@@ -317,12 +317,12 @@ export default class GameScene extends Phaser.Scene {
         if (c.y > WATER_SURFACE + 20 && !duck.underwater) continue;
         if (c.y <= WATER_SURFACE + 20 && duck.y > WATER_SURFACE + 5) continue;
       }
-      if (Math.abs(duck.x - c.x) < 22 && Math.abs(duck.y - c.y) < 22) {
+      if (Math.abs(duck.x - c.x) < 30 && Math.abs(duck.y - c.y) < 30) {
         c.collected = true; this.coins++;
       }
     }
     for (const p of this.powerups) {
-      if (!p.collected && Math.abs(duck.x - p.x) < 18 && Math.abs(duck.y - p.y) < 18) {
+      if (!p.collected && Math.abs(duck.x - p.x) < 26 && Math.abs(duck.y - p.y) < 26) {
         p.collected = true;
         if (p.type === 'star')  { this.invincible = true; this.invTimer   = 360; }
         else                    { this.boosted    = true; this.boostTimer = 270; }
@@ -333,13 +333,16 @@ export default class GameScene extends Phaser.Scene {
     if (this._updateEnemies(fdt, duck, inWater)) return;
 
     // ── Draw state ───────────────────────────────────────────────────────────
+    // Priority: underwater dive → surface swim → fly → airborne → walk → stand
+    // duck.underwater is only true when fully below WATER_SURFACE + 2.
     let drawState;
-    if (duck.underwater)                              drawState = 'dive';
-    else if (inWater && duck.y >= WATER_SURFACE - 4) drawState = 'swim'; // at surface
-    else if (duck.isFlying)                           drawState = 'fly';
-    else if (!duck.onGround)                          drawState = 'stand';
-    else if (Math.abs(duck.vx) > 0.5)                drawState = 'walk';
-    else                                              drawState = 'stand';
+    if (duck.underwater)                                        drawState = 'dive'; // submerged
+    else if (inWater && !duck.isFlying
+             && duck.y >= WATER_SURFACE - 4)                   drawState = 'swim'; // on surface
+    else if (duck.isFlying)                                     drawState = 'fly';
+    else if (!duck.onGround)                                    drawState = 'stand';
+    else if (Math.abs(duck.vx) > 0.5)                          drawState = 'walk';
+    else                                                        drawState = 'stand';
 
     // Swap texture for current movement state
     const texKey = drawState === 'fly'  ? 'mallard-fly'  :
@@ -347,17 +350,25 @@ export default class GameScene extends Phaser.Scene {
                    drawState === 'dive' ? 'mallard-dive' : 'mallard-walk';
     this.mallorySprite.setTexture(texKey);
 
-    // y-offset: swim sprite pushed down so body sits on water surface;
-    //           walk bob simulates foot movement
+    // Sprite Y: no offset on ground (origin 0.5,1.0 puts feet exactly at duck.y).
+    // Swim state pushes sprite down so body sits on the water line.
     let spriteY = duck.y;
     if (drawState === 'swim') {
       spriteY += 10; // align body with water line (sprite has padding at bottom)
     } else if (drawState === 'walk') {
-      spriteY += Math.sin(duck.stepTimer * 0.3) * 2; // 2px vertical bob
+      spriteY += Math.sin(duck.stepTimer * 0.4) * 3; // subtle 3px vertical bob
     }
 
     this.mallorySprite.setPosition(duck.x, spriteY);
     this.mallorySprite.setFlipX(duck.facing < 0);
+
+    // Walk: slight body rock. Reset angle when not walking.
+    if (drawState === 'walk') {
+      this.mallorySprite.setAngle(Math.sin(duck.stepTimer * 0.4) * 4);
+    } else {
+      this.mallorySprite.setAngle(0);
+    }
+
     this.mallorySprite.setAlpha(this.invincible && Math.floor(this._tick / 4) % 2 === 0 ? 0.3 : 1.0);
 
     this._drawItems();
@@ -405,7 +416,7 @@ export default class GameScene extends Phaser.Scene {
       if (!this.invincible) {
         const dx = duck.x - e.x;
         const dy = duck.y - e.y;
-        if (Math.sqrt(dx * dx + dy * dy) < e.killR + 10) {
+        if (Math.sqrt(dx * dx + dy * dy) < e.killR + 18) {
           if (isWater && inWater)    { this.scene.start('DeadScene'); return true; }
           if (!isWater && !isAir && !inWater) { this.scene.start('DeadScene'); return true; }
           if (isAir && !inWater)     { this.scene.start('DeadScene'); return true; }
