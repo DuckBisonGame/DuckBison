@@ -292,14 +292,15 @@ export default class GameScene extends Phaser.Scene {
     duck.x = Phaser.Math.Clamp(duck.x, 16, WORLD_W - 16);
 
     // ── Step timer ──────────────────────────────────────────────────────────
-    if (duck.onGround && !inWater && Math.abs(duck.vx) > 0.5) {
-      duck.stepTimer += fdt;          // walking
+    // Walking: count raw frames (not fdt) so sin animation speed is frame-consistent
+    if (duck.onGround && !inWater && Math.abs(duck.vx) > 0.1) {
+      duck.stepTimer += 1;            // walking — raw frame count
     } else if (!inWater && !duck.onGround) {
       duck.stepTimer += fdt;          // flying (wing flap)
     } else if (inWater) {
       duck.stepTimer += fdt;          // swimming paddle
     } else {
-      duck.stepTimer = 0;             // standing still
+      duck.stepTimer = 0;             // standing still — reset so angle also resets
     }
 
     // ── Collectibles ────────────────────────────────────────────────────────
@@ -337,39 +338,45 @@ export default class GameScene extends Phaser.Scene {
     // duck.underwater is only true when fully below WATER_SURFACE + 2.
     let drawState;
     if (duck.underwater)                                        drawState = 'dive'; // submerged
-    else if (inWater && !duck.isFlying
-             && duck.y >= WATER_SURFACE - 4)                   drawState = 'swim'; // on surface
+    else if (inWater && !duck.underwater && duck.onGround
+             && !duck.isFlying)                                 drawState = 'swim'; // sitting on surface
     else if (duck.isFlying)                                     drawState = 'fly';
     else if (!duck.onGround)                                    drawState = 'stand';
     else if (Math.abs(duck.vx) > 0.5)                          drawState = 'walk';
     else                                                        drawState = 'stand';
 
-    // Swap texture for current movement state
-    const texKey = drawState === 'fly'  ? 'mallard-fly'  :
-                   drawState === 'swim' ? 'mallard-swim' :
-                   drawState === 'dive' ? 'mallard-dive' : 'mallard-walk';
-    this.mallorySprite.setTexture(texKey);
-
-    // Sprite Y: no offset on ground (origin 0.5,1.0 puts feet exactly at duck.y).
-    // Swim state pushes sprite down so body sits on the water line.
-    let spriteY = duck.y;
+    // ── Sprite positioning per draw state ───────────────────────────────────
     if (drawState === 'swim') {
-      spriteY += 10; // align body with water line (sprite has padding at bottom)
-    } else if (drawState === 'walk') {
-      spriteY += Math.sin(duck.stepTimer * 0.4) * 3; // subtle 3px vertical bob
-    }
-
-    this.mallorySprite.setPosition(duck.x, spriteY);
-    this.mallorySprite.setFlipX(duck.facing < 0);
-
-    // Walk: slight body rock. Reset angle when not walking.
-    if (drawState === 'walk') {
-      this.mallorySprite.setAngle(Math.sin(duck.stepTimer * 0.4) * 4);
-    } else {
+      this.mallorySprite.setTexture('mallard-swim');
+      this.mallorySprite.setOrigin(0.5, 1.0);
+      this.mallorySprite.setPosition(duck.x, WATER_SURFACE);
       this.mallorySprite.setAngle(0);
+      this.mallorySprite.setFlipX(duck.facing < 0);
+      this.mallorySprite.setAlpha(1);
+    } else if (drawState === 'dive') {
+      this.mallorySprite.setTexture('mallard-dive');
+      this.mallorySprite.setOrigin(0.5, 0.5);
+      this.mallorySprite.setPosition(duck.x, duck.y);
+      this.mallorySprite.setAngle(0);
+      this.mallorySprite.setFlipX(duck.facing < 0);
+      this.mallorySprite.y += Math.sin(duck.stepTimer * 0.15) * 3;
+      this.mallorySprite.setAlpha(1);
+    } else {
+      // Land / fly / walk / stand — bottom-center anchor
+      this.mallorySprite.setOrigin(0.5, 1.0);
+      const texKey = drawState === 'fly' ? 'mallard-fly' : 'mallard-walk';
+      this.mallorySprite.setTexture(texKey);
+      this.mallorySprite.setPosition(duck.x, duck.y);
+      this.mallorySprite.setFlipX(duck.facing < 0);
+      if (drawState === 'walk') {
+        this.mallorySprite.y -= Math.sin(duck.stepTimer * 0.28) * 12;
+        this.mallorySprite.setAngle(Math.sin(duck.stepTimer * 0.28) * 15);
+      } else {
+        this.mallorySprite.setAngle(0);
+      }
+      // Invincibility flicker — only on land/fly states
+      this.mallorySprite.setAlpha(this.invincible && Math.floor(this._tick / 4) % 2 === 0 ? 0.3 : 1.0);
     }
-
-    this.mallorySprite.setAlpha(this.invincible && Math.floor(this._tick / 4) % 2 === 0 ? 0.3 : 1.0);
 
     this._drawItems();
     this._drawCampfires();
